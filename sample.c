@@ -1,3 +1,4 @@
+#define _CRT_SECURE_NO_WARNINGS
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -39,16 +40,27 @@
 #define oWD 25
 #define oMAX 26
 
-FILE *f;
+FILE* f;
+//filename
 char fname[20];
+//
 char tname[20];
+//command line
 char c_line[30];
+//object code line
 char o_line[80];
+// command load,show,unload,exit,run
 char cmd[8];
+//program length
 int prog_len = 0;
+//start address
 int start_add = 0;
+//record first address
 int first_add = 0;
+//cursor address
 int curr_add = 0;
+
+//virtual memory block
 char* memory;
 int mem_size = 0;
 int loaded = 0;
@@ -57,213 +69,252 @@ int indexed = 0;
 int operand = 0;
 int running = 0;
 
+//register A,register X,register L,reister PC,register SW
 int reg_A, reg_X, reg_L, reg_PC, reg_SW;
 
-//80¤À
-//show¥X©R¥O´£¥Ü¦C
-//unload : §â«e­±³£§Ñ±¼¡A¦Ashow­n§â«e­±ªº³£¥á±¼
-//exit : µ{¦¡µ²§ô
-//100¤À(Ãø)
-//´£¥Ü²Å¸¹¥´run¡A°õ¦æobject code¡AÅÜ¼Æ¦³³Q­×§ï¡C
+//80åˆ†
+//showå‡ºå‘½ä»¤æç¤ºåˆ—
+//unload : æŠŠå‰é¢éƒ½å¿˜æ‰ï¼Œå†showè¦æŠŠå‰é¢çš„éƒ½ä¸Ÿæ‰
+//exit : ç¨‹å¼çµæŸ
+//100åˆ†(é›£)
+//æç¤ºç¬¦è™Ÿæ‰“runï¼ŒåŸ·è¡Œobject codeï¼Œè®Šæ•¸æœ‰è¢«ä¿®æ”¹ã€‚
 
 
 
-const char s_command[5][7] = {"load", "show", "unload", "exit", "run"};
+const char s_command[5][7] = { "load", "show", "unload", "exit", "run" };
 const int MAXADD = 0x7FFF;
 const int IKEY = 0x8000;
 
-const char optab[26][3] = {"18", "40", "28", "24", "3C", "30", "34", "38", "48", "00", "50", "08", "04", "20", "44", "D8", "4C", "0C", "54", "14", "E8", "10", "1C", "E0", "2C", "DC"};
+const char optab[26][3] = { "18", "40", "28", "24", "3C", "30", "34", "38", "48", "00", "50", "08", "04", "20", "44", "D8", "4C", "0C", "54", "14", "E8", "10", "1C", "E0", "2C", "DC" };
 
-int lookup ( char *s ) {
+int lookup(char* s) {
     int i;
-    for (i=0; i<oMAX; i++)
-	if (strcmp(optab[i], s) == 0) return i;
+    for (i = 0; i < oMAX; i++)
+        if (strcmp(optab[i], s) == 0) return i;
     return -1;
 }
 
-int readline () {
+int readline() {
     int i = 0;
     int tmp = cMIN;
 
     printf("SIC Simulator> ");
-do {
-    fgets( c_line, 30, stdin );
-    i = strlen( c_line );
-    c_line[i-1] = '\0';
-    // printf("Line = [%s], i = [%d]\n", c_line, i);
-} while (i <= 1);
+    do {
+        fgets(c_line, 30, stdin);
+        i = strlen(c_line);
+        c_line[i - 1] = '\0';
+        printf("Line = [%s], i = [%d]\n", c_line, i);
+    } while (i <= 1);
 
-    sscanf( c_line, "%s", cmd );
-    // printf("Command = [%s]\n", cmd );
+    sscanf(c_line, "%s", cmd);
+    printf("Command = [%s]\n", cmd );
 
-    if (strcmp( cmd, s_command[0]) == 0) tmp = cLOAD;
-    else if (strcmp( cmd, s_command[1]) == 0) tmp = cSHOW;
-    else if (strcmp( cmd, s_command[2]) == 0) tmp = cUNLOAD;
-    else if (strcmp( cmd, s_command[3]) == 0) tmp = cEXIT;
-    else if (strcmp( cmd, s_command[4]) == 0) tmp = cRUN;
-    // printf("Command number is %d.\n", tmp);
+    if (strcmp(cmd, s_command[0]) == 0) tmp = cLOAD;
+    else if (strcmp(cmd, s_command[1]) == 0) tmp = cSHOW;
+    else if (strcmp(cmd, s_command[2]) == 0) tmp = cUNLOAD;
+    else if (strcmp(cmd, s_command[3]) == 0) tmp = cEXIT;
+    else if (strcmp(cmd, s_command[4]) == 0) tmp = cRUN;
+    printf("Command number is %d.\n", tmp);
 
     c_line[0] = '\0';
     cmd[0] = '\0';
     return tmp;
 }
 
-void rd_header () {
+void rd_header() {
     char tmp[7];
     int i, j, s;
 
-    for (i=7, j=0; i<13; i++, j++)  tmp[j] = o_line[i];
+    for (i = 7, j = 0; i < 13; i++, j++)  tmp[j] = o_line[i];
     tmp[j] = '\0';
-    sscanf( tmp, "%x", &start_add );
+    sscanf(tmp, "%x", &start_add);
 
-    for (i=13, j=0; i<19; i++, j++)  tmp[j] = o_line[i];
+    for (i = 13, j = 0; i < 19; i++, j++)  tmp[j] = o_line[i];
     tmp[j] = '\0';
-    sscanf( tmp, "%x", &prog_len );
+    sscanf(tmp, "%x", &prog_len);
 
     s = prog_len * 2 + 1;
-    memory = (char *)malloc(sizeof(char) * s);
+    memory = (char*)malloc(sizeof(char) * s);
     if (memory) {
-	for (i=0; i<s; i++)  memory[i] = 'X';
-	memory[s-1] = '\0';
-	loaded = 1;
-	mem_size = s;
-    } else {
-	printf("Loading Failed! (Memory allocation error)\n");
+        for (i = 0; i < s; i++)  memory[i] = 'X';
+        memory[s - 1] = '\0';
+        loaded = 1;
+        mem_size = s;
+    }
+    else {
+        printf("Loading Failed! (Memory allocation error)\n");
     }
 }
 
-void rd_text () {
+void rd_text() {
     char tmp[7];
     int i, j, l, s;
 
-    for (i=1, j=0; i<7; i++, j++)  tmp[j] = o_line[i];
+    for (i = 1, j = 0; i < 7; i++, j++)  tmp[j] = o_line[i];
     tmp[j] = '\0';
-    sscanf( tmp, "%x", &s );
+    sscanf(tmp, "%x", &s);
 
-    for (i=7, j=0; i<9; i++, j++)  tmp[j] = o_line[i];
+    for (i = 7, j = 0; i < 9; i++, j++)  tmp[j] = o_line[i];
     tmp[j] = '\0';
-    sscanf( tmp, "%x", &l );
+    sscanf(tmp, "%x", &l);
 
     l = 9 + l * 2;
-    for (i=9, j=(s - start_add) * 2; i < l; i++, j++)
-	memory[j] = o_line[i];
+    for (i = 9, j = (s - start_add) * 2; i < l; i++, j++)
+        memory[j] = o_line[i];
 }
 
-void rd_end () {
+void rd_end() {
     char tmp[7];
     int i, j;
 
-    for (i=1, j=0; i<7; i++, j++)  tmp[j] = o_line[i];
+    for (i = 1, j = 0; i < 7; i++, j++)  tmp[j] = o_line[i];
     tmp[j] = '\0';
-    sscanf( tmp, "%x", &first_add );
+    sscanf(tmp, "%x", &first_add);
 }
 
 /* Write your own s_load here. */
-void s_load () {
-    rd_header();
-    //verify program name and length
-    rd_text();
-    while(/*read type != 'E'*/){
-        rd_text();
-
+void s_load() {
+    int i;
+    printf("    file name > ");
+    fgets(fname, 20, stdin);
+    i = strlen(fname);
+    fname[i - 1] = '\0';
+    f = fopen(fname, "r");
+    fgets(o_line, 80, f);
+    i = strlen(o_line);
+    o_line[i - 1] = '\0';
+    char prog_name[7];
+    if (o_line[0] == 'H') {
+        int i, j;
+        for (i = 1, j = 0; i < 7; i++, j++)  prog_name[j] = o_line[i];
+        prog_name[j] = '\0';
+        rd_header();
     }
+    fgets(o_line, 80, f);
+    //verify program name and length
+    printf("Program name = [%s], Program Length = [%x]\n", prog_name, prog_len);
+    while (o_line[0] != 'E') {
+        int i;
+        i = strlen(o_line);
+        o_line[i - 1] = '\0';
+        printf("%s\n", o_line);
+        rd_text();
+        fgets(o_line, 80, f);
+    }
+    printf("%s\n", o_line);
     rd_end();
-
+    o_line[0] = '\0';
+    printf("Load Successful!\n");
 }
 
 /* Write your own s_show here. */
-void s_show () {
+void s_show() {
+    int i, j;
+    for (i = 0; i < mem_size; i += 32) {
+        for (j = i; j < i + 32; j++) {
+                printf("%c", memory[j]);
+                if (j % 8 == 7)
+                    printf(" ");
+        }
+        printf("\n");
+    }
+    printf("\n");
 }
 
 /* Write your own s_unload here. */
-void s_unload () {
+void s_unload() {
+    int i,j;
+    for (i = 0; i < mem_size; i++) {
+            memory[i] = 'X';
+    }
 }
 
-void init_run () {
+void init_run() {
     reg_A = 0;
     reg_X = 0;
     reg_L = 0;
     reg_PC = first_add;
     reg_SW = 0;
     curr_add = (first_add - start_add) * 2;
-    running  = 1;
+    running = 1;
 }
 
-void get_op () {
+void get_op() {
     char s[3];
     char t[5];
     s[0] = memory[curr_add];
-    s[1] = memory[curr_add+1];
+    s[1] = memory[curr_add + 1];
     s[2] = '\0';
     op = lookup(s);
-    t[0] = memory[curr_add+2];
-    t[1] = memory[curr_add+3];
-    t[2] = memory[curr_add+4];
-    t[3] = memory[curr_add+5];
+    t[0] = memory[curr_add + 2];
+    t[1] = memory[curr_add + 3];
+    t[2] = memory[curr_add + 4];
+    t[3] = memory[curr_add + 5];
     t[4] = '\0';
     sscanf(t, "%X", &operand);
     if (operand >= IKEY) {
-	indexed = 1;
-	operand -= IKEY;
-    } else {
-	indexed = 0;
+        indexed = 1;
+        operand -= IKEY;
+    }
+    else {
+        indexed = 0;
     }
     curr_add += 6;
     reg_PC += 3;
 }
 
-int get_value (int r, int x) {
+int get_value(int r, int x) {
     int tmp = 0;
     char s[7];
     int i, j;
     if (x) r += reg_X;
     i = (r - start_add) * 2;
-    for (j=0; j<6; j++) s[j] = memory[i++];
+    for (j = 0; j < 6; j++) s[j] = memory[i++];
     s[6] = '\0';
     sscanf(s, "%X", &tmp);
     return tmp;
 }
 
-int get_byte (int r, int x) {
+int get_byte(int r, int x) {
     int tmp = 0;
     char s[3];
     int i, j;
     if (x) r += reg_X;
     i = (r - start_add) * 2;
-    j=0;
+    j = 0;
     s[j++] = memory[i++];
     s[j++] = memory[i++];
     s[2] = '\0';
     sscanf(s, "%X", &tmp);
-    // printf("LDCH: r = [%X], x = [%d], tmp = [%c]\n", r, x, tmp);
+    printf("LDCH: r = [%X], x = [%d], tmp = [%c]\n", r, x, tmp);
     return tmp;
 }
 
-void put_byte (int k, int r, int x) {
+void put_byte(int k, int r, int x) {
     int tmp = 0;
     char s[3];
     int i, j;
     if (x) r += reg_X;
-    sprintf( s, "%02X", k );
+    sprintf(s, "%02X", k);
     i = (r - start_add) * 2;
-    j=0;
+    j = 0;
     memory[i++] = s[j++];;
     memory[i++] = s[j++];;
 }
 
-void put_value (int k, int r, int x) {
+void put_value(int k, int r, int x) {
     int tmp = 0;
     char s[7];
     int i, j;
-    // printf("put_value ( %X, %X, %X ) starts.\n", k, r, x);
+    printf("put_value ( %X, %X, %X ) starts.\n", k, r, x);
     if (x) r += reg_X;
-    sprintf( s, "%06X", k );
+    sprintf(s, "%06X", k);
     i = (r - start_add) * 2;
-    for (j=0; j<6; j++) memory[i++] = s[j];
-    // printf("put_value ( %X, %X, %X ) finishes.\n", k, r, x);
+    for (j = 0; j < 6; j++) memory[i++] = s[j];
+    printf("put_value ( %X, %X, %X ) finishes.\n", k, r, x);
 }
 
-void show_reg () {
+void show_reg() {
     printf("Register A  = [%06X];\n", reg_A);
     printf("Register X  = [%06X];\n", reg_X);
     printf("Register L  = [%06X];\n", reg_L);
@@ -272,29 +323,101 @@ void show_reg () {
 }
 
 /* Write your own s_run here. */
-void s_run () {
+void s_run() {
     init_run();
+    char CC;
+    while (curr_add < start_add + mem_size) {
+        get_op();
+        printf("%X", operand );
+        //printf("%d\n", op);
+        switch (op)
+        {
+        case 0: reg_A += get_value(operand,indexed);
+            break;
+        case 1: reg_A = reg_A & get_value(operand,indexed);
+            break;
+        case 2:{
+            if (reg_A == get_value(operand, indexed))
+                CC = '=';
+            else if (reg_A > get_value(operand,indexed))
+                CC = '>';
+            else
+                CC = '<';
+        }
+            break;
+        case 3: reg_A /= get_value(operand,indexed);
+            break;
+        case 4: reg_PC = operand;
+            break;
+        case 5: if (CC == '=') reg_PC = operand;
+            break;
+        case 6: if (CC == '>') reg_PC = operand;
+            break;
+        case 7 :if (CC == '<') reg_PC = operand;
+            break;
+        case 8:{
+            reg_L = reg_PC;
+            reg_PC = operand;
+        }
+            break;
+        case 9: reg_A = get_value(operand, indexed);
+            break;
+        case 10:reg_A = get_byte(operand, indexed);
+            break;
+        case 11:reg_L = get_value(operand, indexed);
+            break;
+        case 12: reg_X = get_value(operand, indexed);
+            break;
+        case 13: reg_A *= get_value(operand, indexed);
+            break;
+        case 14: reg_A = reg_A || get_value(operand, indexed);
+            break;
+        case 15: reg_A = get_byte(operand, indexed);
+            break;
+        case 16: reg_PC = reg_L;
+            break;
+        case 17: put_value(reg_A,operand, indexed);
+            break;
+        case 18: put_byte(reg_A, operand, indexed);
+            break;
+        case 19: put_value(reg_L, operand, indexed);
+            break;
+        case 20: put_value(reg_SW, operand, indexed);
+            break;
+        case 21: put_value(reg_X, operand, indexed);
+            break;
+        case 22: reg_A -= get_value(operand, indexed);
+            break;
+        case 23: printf("Test Device %d", operand);
+            break;
+        case 24:reg_X += 1;
+            break;
+        case 25: put_byte(reg_A, operand, indexed);
+            break;
+        default: printf("test");
+            break;
+        }
+    }
 }
 
-int main () {
+int main() {
     int comm = 0;
-
     comm = readline();
     while (comm != cEXIT) {
-	switch (comm) {
-	    case cLOAD: s_load();
-			break;
-	    case cSHOW: s_show();
-			break;
-	    case cUNLOAD: s_unload();
-			break;
-	    case cRUN: s_run();
-			break;
-	    default:   printf("Unknown Command!\n");
-			break;
-	}
-	comm = cMIN;
-	comm = readline();
+        switch (comm) {
+        case cLOAD: s_load();
+            break;
+        case cSHOW: s_show();
+            break;
+        case cUNLOAD: s_unload();
+            break;
+        case cRUN: s_run();
+            break;
+        default:   printf("Unknown Command!\n");
+            break;
+        }
+        comm = cMIN;
+        comm = readline();
     }
     if (loaded) s_unload();
 }
