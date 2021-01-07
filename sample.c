@@ -39,6 +39,10 @@
 #define oTIX 24
 #define oWD 25
 #define oMAX 26
+#define empty 0
+#define eq 1
+#define gt 2
+#define lt 3
 
 FILE* f;
 //filename
@@ -153,6 +157,7 @@ void rd_text() {
     for (i = 1, j = 0; i < 7; i++, j++)  tmp[j] = o_line[i];
     tmp[j] = '\0';
     sscanf(tmp, "%x", &s);
+    //printf("%X",s);
 
     for (i = 7, j = 0; i < 9; i++, j++)  tmp[j] = o_line[i];
     tmp[j] = '\0';
@@ -175,57 +180,78 @@ void rd_end() {
 /* Write your own s_load here. */
 void s_load() {
     int i;
-    printf("    file name > ");
-    fgets(fname, 20, stdin);
-    i = strlen(fname);
-    fname[i - 1] = '\0';
-    f = fopen(fname, "r");
-    fgets(o_line, 80, f);
-    i = strlen(o_line);
-    o_line[i - 1] = '\0';
-    char prog_name[7];
-    if (o_line[0] == 'H') {
-        int i, j;
-        for (i = 1, j = 0; i < 7; i++, j++)  prog_name[j] = o_line[i];
-        prog_name[j] = '\0';
-        rd_header();
+    if(loaded) printf("ERROR : There is already an object program loaded in memory !\n");
+    else{
+        printf("    file name > ");
+        fgets(fname, 20, stdin);
+        i = strlen(fname);
+        fname[i - 1] = '\0';
+        f = fopen(fname, "r");
+        if(f == NULL) printf("ERROR : Failed to open dile!\n");
+        else{
+            fgets(o_line, 80, f);
+            i = strlen(o_line);
+            o_line[i - 1] = '\0';
+            char prog_name[7];
+            if (o_line[0] == 'H') {
+                int i, j;
+                for (i = 1, j = 0; i < 7; i++, j++)  prog_name[j] = o_line[i];
+                prog_name[j] = '\0';
+                rd_header();
+            }
+            fgets(o_line, 80, f);
+            //verify program name and length
+            printf("Program name = [%s], Program Length = [%x]\n", prog_name, prog_len);
+            while (o_line[0] != 'E') {
+                int i;
+                i = strlen(o_line);
+                o_line[i - 1] = '\0';
+                //printf("%s\n", o_line);
+                rd_text();
+                fgets(o_line, 80, f);
+            }
+            rd_end();
+            loaded = 1;
+            o_line[0] = '\0';
+            printf("Load Successful!\n");
+        }
+        fclose(f);
     }
-    fgets(o_line, 80, f);
-    //verify program name and length
-    printf("Program name = [%s], Program Length = [%x]\n", prog_name, prog_len);
-    while (o_line[0] != 'E') {
-        int i;
-        i = strlen(o_line);
-        o_line[i - 1] = '\0';
-        printf("%s\n", o_line);
-        rd_text();
-        fgets(o_line, 80, f);
-    }
-    printf("%s\n", o_line);
-    rd_end();
-    o_line[0] = '\0';
-    printf("Load Successful!\n");
 }
 
 /* Write your own s_show here. */
 void s_show() {
-    int i, j;
-    for (i = 0; i < mem_size; i += 32) {
-        for (j = i; j < i + 32; j++) {
-                printf("%c", memory[j]);
-                if (j % 8 == 7)
-                    printf(" ");
-        }
+    int i, j = 0;
+    for(curr_add = first_add;curr_add < first_add + prog_len;curr_add += 16){
+        printf("%x      ",curr_add);
+        for(i = 0 + j * 32;i < 8 + j * 32 && memory[i] != '\0';i++) printf("%c",memory[i]);
+        printf("      ");
+        for(;i < 16 + j * 32 && memory[i] != '\0';i++) printf("%c",memory[i]);
+        printf("      ");
+        for(;i < 24 + j * 32 && memory[i] != '\0';i++) printf("%c",memory[i]);
+        printf("      ");
+        for(;i < 32 + j * 32 && memory[i] != '\0';i++) printf("%c",memory[i]);
         printf("\n");
+        j++;
     }
-    printf("\n");
 }
 
 /* Write your own s_unload here. */
 void s_unload() {
-    int i,j;
-    for (i = 0; i < mem_size; i++) {
-            memory[i] = 'X';
+    if(loaded){
+        fclose(f);
+        fname[0] = '\0';
+        o_line[0] = '\0';
+        free(memory);
+        prog_len = 0;
+        start_add = 0;
+        first_add = 0;
+        curr_add = 0;
+        mem_size = 0;
+        loaded = 0;
+        op = 0;
+        indexed = 0;
+        operand = 0;
     }
 }
 
@@ -260,6 +286,7 @@ void get_op() {
         indexed = 0;
     }
     curr_add += 6;
+    //printf("*%X*", curr_add );
     reg_PC += 3;
 }
 
@@ -325,79 +352,101 @@ void show_reg() {
 /* Write your own s_run here. */
 void s_run() {
     init_run();
-    char CC;
-    while (curr_add < start_add + mem_size) {
+    printf("*%X*", curr_add );
+    while (running) {
         get_op();
-        printf("%X", operand );
+        //printf("%X", operand );
         //printf("%d\n", op);
-        switch (op)
-        {
-        case 0: reg_A += get_value(operand,indexed);
+        switch(op){
+        case 0:
+            reg_A += get_value(operand,indexed);
             break;
-        case 1: reg_A = reg_A & get_value(operand,indexed);
+        case 1:
+            reg_A &= get_value(operand,indexed);
             break;
-        case 2:{
-            if (reg_A == get_value(operand, indexed))
-                CC = '=';
-            else if (reg_A > get_value(operand,indexed))
-                CC = '>';
-            else
-                CC = '<';
-        }
+        case 2:
+            if(reg_A > get_value(operand,indexed)) reg_SW = gt;
+            else if(reg_A < get_value(operand,indexed)) reg_SW = lt;
+            else reg_SW = eq;
             break;
-        case 3: reg_A /= get_value(operand,indexed);
+        case 3:
+            reg_A /= get_value(operand,indexed);
             break;
-        case 4: reg_PC = operand;
-            break;
-        case 5: if (CC == '=') reg_PC = operand;
-            break;
-        case 6: if (CC == '>') reg_PC = operand;
-            break;
-        case 7 :if (CC == '<') reg_PC = operand;
-            break;
-        case 8:{
-            reg_L = reg_PC;
+        case 4:
             reg_PC = operand;
-        }
+            curr_add = (reg_PC - start_add)*2;
             break;
-        case 9: reg_A = get_value(operand, indexed);
+        case 5:
+            if(reg_SW == eq) reg_PC = operand,curr_add = (reg_PC - start_add)*2;
             break;
-        case 10:reg_A = get_byte(operand, indexed);
+        case 6:
+            if(reg_SW == gt) reg_PC = operand,curr_add = (reg_PC - start_add)*2;
             break;
-        case 11:reg_L = get_value(operand, indexed);
+        case 7:
+            if(reg_SW == lt) reg_PC = operand,curr_add = (reg_PC - start_add)*2;
             break;
-        case 12: reg_X = get_value(operand, indexed);
+        case 8:
+            reg_L = reg_PC,reg_PC = operand, curr_add = (reg_PC - start_add)*2;
             break;
-        case 13: reg_A *= get_value(operand, indexed);
+        case 9:
+            reg_A = get_value(operand,indexed);
             break;
-        case 14: reg_A = reg_A || get_value(operand, indexed);
+        case 10:
+            reg_A = (reg_A & 16776960) | get_byte(operand,indexed);
             break;
-        case 15: reg_A = get_byte(operand, indexed);
+        case 11:
+            reg_L = get_value(operand,indexed);
             break;
-        case 16: reg_PC = reg_L;
+        case 12:
+            reg_X = get_value(operand,indexed);
+        case 13:
+            reg_A *= get_value(operand,indexed);
             break;
-        case 17: put_value(reg_A,operand, indexed);
+        case 14:
+            reg_A |= get_value(operand,indexed);
             break;
-        case 18: put_byte(reg_A, operand, indexed);
+        case 15:
+            reg_A = reg_A;
             break;
-        case 19: put_value(reg_L, operand, indexed);
+        case 16:
+            if(reg_L == 0) running = 0;
+            else reg_PC = reg_L,curr_add = (reg_PC - start_add) * 2;
             break;
-        case 20: put_value(reg_SW, operand, indexed);
+        case 17:
+            put_value(reg_A,operand,indexed);
             break;
-        case 21: put_value(reg_X, operand, indexed);
+        case 18:
+            put_byte(reg_A,operand,indexed);
             break;
-        case 22: reg_A -= get_value(operand, indexed);
+        case 19:
+            put_value(reg_L,operand,indexed);
             break;
-        case 23: printf("Test Device %d", operand);
+        case 20 :
+            put_value(reg_SW,operand,indexed);
             break;
-        case 24:reg_X += 1;
+        case 21:
+            put_value(reg_X,operand,indexed);
             break;
-        case 25: put_byte(reg_A, operand, indexed);
+        case 22:
+            reg_A -= get_value(operand,indexed);
             break;
-        default: printf("test");
+        case 23:
+            reg_SW = gt;
+            break;
+        case 24:
+            reg_X += 1;
+            if(reg_X > get_value(operand,indexed)) reg_SW = gt;
+            else if(reg_X < get_value(operand,indexed)) reg_SW = lt;
+            else reg_SW = eq;
+            break;
+        case 25:
+            reg_A = reg_A;
+            break;
+        default:
             break;
         }
     }
+    show_reg();
 }
 
 int main() {
