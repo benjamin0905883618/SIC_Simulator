@@ -44,6 +44,7 @@
 #define gt 2
 #define lt 3
 
+
 FILE* f;
 //filename
 char fname[20];
