@@ -2,53 +2,8 @@
 因系統程式的需求，使用C語言實作SIC Simulator
 
 ## 初始值、變數宣告
+### 檔案、輸入宣告
 ```
-#define _CRT_SECURE_NO_WARNINGS
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-#define cMIN -1
-#define cLOAD 0
-#define cSHOW 1
-#define cUNLOAD 2
-#define cEXIT 3
-#define cRUN 4
-#define cMAX 5
-#define oMIN -1
-#define oADD 0
-#define oAND 1
-#define oCOMP 2
-#define oDIV 3
-#define oJ 4
-#define oJEQ 5
-#define oJGT 6
-#define oJLT 7
-#define oJSUB 8
-#define oLDA 9
-#define oLDCH 10
-#define oLDL 11
-#define oLDX 12
-#define oMUL 13
-#define oOR 14
-#define oRD 15
-#define oRSUB 16
-#define oSTA 17
-#define oSTCH 18
-#define oSTL 19
-#define oSTSW 20
-#define oSTX 21
-#define oSUB 22
-#define oTD 23
-#define oTIX 24
-#define oWD 25
-#define oMAX 26
-#define empty 0
-#define eq 1
-#define gt 2
-#define lt 3
-
-
 FILE* f;
 //filename
 char fname[20];
@@ -68,7 +23,9 @@ int start_add = 0;
 int first_add = 0;
 //cursor address
 int curr_add = 0;
-
+```
+### load、run部分宣告
+```
 //virtual memory block
 char* memory;
 int mem_size = 0;
@@ -81,14 +38,6 @@ int running = 0;
 //register A,register X,register L,reister PC,register SW
 int reg_A, reg_X, reg_L, reg_PC, reg_SW;
 
-//80分
-//show出命令提示列
-//unload : 把前面都忘掉，再show要把前面的都丟掉
-//exit : 程式結束
-//100分(難)
-//提示符號打run，執行object code，變數有被修改。
-
-
 
 const char s_command[5][7] = { "load", "show", "unload", "exit", "run" };
 const int MAXADD = 0x7FFF;
@@ -98,7 +47,7 @@ const char optab[26][3] = { "18", "40", "28", "24", "3C", "30", "34", "38", "48"
 ```
 除了SIC指令在初始實都先給上數字之外，還設定SW的值，**未設定** = 0、**相等(eq)** = 1、**大於(gt)** = 2及**小於(lt)** = 3。
 ## Load
-### Read Record
+### Read Header Record
 ```
 void rd_header() {
     char tmp[7];
@@ -124,7 +73,9 @@ void rd_header() {
         printf("Loading Failed! (Memory allocation error)\n");
     }
 }
-
+```
+### Read Text Record
+```
 void rd_text() {
     char tmp[7];
     int i, j, l, s;
@@ -142,7 +93,9 @@ void rd_text() {
     for (i = 9, j = (s - start_add) * 2; i < l; i++, j++)
         memory[j] = o_line[i];
 }
-
+```
+### Read End Record
+```
 void rd_end() {
     char tmp[7];
     int i, j;
@@ -485,6 +438,7 @@ int main() {
 ![](https://i.imgur.com/4UQg7Gp.png)
 ![](https://i.imgur.com/sE5tLVH.png)
 ![](https://i.imgur.com/c0Ci3Vr.png)
+
 此為將程式碼在精簡後的結果(將一些檢查部分去除)
 
 
